@@ -106,11 +106,12 @@ const (
 // CacheConfig contains the configuration values for the trie caching/pruning
 // that's resident in a blockchain.
 type CacheConfig struct {
-	TrieCleanLimit      int           // Memory allowance (MB) to use for caching trie nodes in memory
-	TrieCleanNoPrefetch bool          // Whether to disable heuristic state prefetching for followup blocks
-	TrieDirtyLimit      int           // Memory limit (MB) at which to start flushing dirty trie nodes to disk
-	TrieDirtyDisabled   bool          // Whether to disable trie write caching and GC altogether (archive node)
-	TrieTimeLimit       time.Duration // Time limit after which to flush the current in-memory trie to disk
+	TrieCleanLimit        int           // Memory allowance (MB) to use for caching trie nodes in memory
+	TrieCleanNoPrefetch   bool          // Whether to disable heuristic state prefetching for followup blocks
+	TrieDirtyLimit        int           // Memory limit (MB) at which to start flushing dirty trie nodes to disk
+	TrieDirtyDisabled     bool          // Whether to disable trie write caching and GC altogether (archive node)
+	TrieTimeLimit         time.Duration // Time limit after which to flush the current in-memory trie to disk
+	TrieAbsoluteTimeLimit time.Duration // Absolute Time limit after which to flush the current in-memory trie to disk
 }
 
 // BlockChain represents the canonical chain given a database with a genesis
@@ -131,9 +132,10 @@ type BlockChain struct {
 	chainConfig *params.ChainConfig // Chain & network configuration
 	cacheConfig *CacheConfig        // Cache configuration for pruning
 
-	db     ethdb.Database // Low level persistent database to store final content in
-	triegc *prque.Prque   // Priority queue mapping block numbers to tries to gc
-	gcproc time.Duration  // Accumulates canonical block processing for trie dumping
+	db         ethdb.Database // Low level persistent database to store final content in
+	triegc     *prque.Prque   // Priority queue mapping block numbers to tries to gc
+	gcproc     time.Duration  // Accumulates canonical block processing for trie dumping
+	nextgctime time.Time      // Specifies the time that we should force flushing to disk if other conditions are not met
 
 	hc            *HeaderChain
 	rmLogsFeed    event.Feed
@@ -180,9 +182,10 @@ type BlockChain struct {
 func NewBlockChain(db ethdb.Database, cacheConfig *CacheConfig, chainConfig *params.ChainConfig, engine consensus.Engine, vmConfig vm.Config, shouldPreserve func(block *types.Block) bool) (*BlockChain, error) {
 	if cacheConfig == nil {
 		cacheConfig = &CacheConfig{
-			TrieCleanLimit: 256,
-			TrieDirtyLimit: 256,
-			TrieTimeLimit:  5 * time.Minute,
+			TrieCleanLimit:        256,
+			TrieDirtyLimit:        256,
+			TrieTimeLimit:         5 * time.Minute,
+			TrieAbsoluteTimeLimit: 24 * time.Hour,
 		}
 	}
 	bodyCache, _ := lru.New(bodyCacheLimit)
@@ -208,6 +211,7 @@ func NewBlockChain(db ethdb.Database, cacheConfig *CacheConfig, chainConfig *par
 		engine:         engine,
 		vmConfig:       vmConfig,
 		badBlocks:      badBlocks,
+		nextgctime:     time.Now().Add(cacheConfig.TrieAbsoluteTimeLimit),
 	}
 	bc.validator = NewBlockValidator(chainConfig, bc, engine)
 	bc.prefetcher = newStatePrefetcher(chainConfig, bc, engine)
@@ -1302,7 +1306,7 @@ func (bc *BlockChain) writeBlockWithState(block *types.Block, receipts []*types.
 			chosen := current - TriesInMemory
 
 			// If we exceeded out time allowance, flush an entire trie to disk
-			if bc.gcproc > bc.cacheConfig.TrieTimeLimit {
+			if bc.gcproc > bc.cacheConfig.TrieTimeLimit || time.Now().After(bc.nextgctime) {
 				// If the header is missing (canonical chain behind), we're reorging a low
 				// diff sidechain. Suspend committing until this operation is completed.
 				header := bc.GetHeaderByNumber(chosen)
@@ -1318,6 +1322,7 @@ func (bc *BlockChain) writeBlockWithState(block *types.Block, receipts []*types.
 					triedb.Commit(header.Root, true)
 					lastWrite = chosen
 					bc.gcproc = 0
+					bc.nextgctime = time.Now().Add(bc.cacheConfig.TrieAbsoluteTimeLimit)
 				}
 			}
 			// Garbage collect anything below our required write retention

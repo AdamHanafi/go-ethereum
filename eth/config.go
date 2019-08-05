@@ -43,13 +43,14 @@ var DefaultConfig = Config{
 		DatasetsInMem:  1,
 		DatasetsOnDisk: 2,
 	},
-	NetworkId:          1,
-	LightPeers:         100,
-	UltraLightFraction: 75,
-	DatabaseCache:      512,
-	TrieCleanCache:     256,
-	TrieDirtyCache:     256,
-	TrieTimeout:        60 * time.Minute,
+	NetworkId:           1,
+	LightPeers:          100,
+	UltraLightFraction:  75,
+	DatabaseCache:       512,
+	TrieCleanCache:      256,
+	TrieDirtyCache:      256,
+	TrieTimeout:         60 * time.Minute,
+	TrieAbsoluteTimeout: 24 * time.Hour,
 	Miner: miner.Config{
 		GasFloor: 8000000,
 		GasCeil:  8000000,
@@ -118,9 +119,10 @@ type Config struct {
 	DatabaseCache      int
 	DatabaseFreezer    string
 
-	TrieCleanCache int
-	TrieDirtyCache int
-	TrieTimeout    time.Duration
+	TrieCleanCache      int
+	TrieDirtyCache      int
+	TrieTimeout         time.Duration
+	TrieAbsoluteTimeout time.Duration
 
 	// Mining options
 	Miner miner.Config

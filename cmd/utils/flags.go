@@ -1685,11 +1685,12 @@ func MakeChain(ctx *cli.Context, stack *node.Node) (chain *core.BlockChain, chai
 		Fatalf("--%s must be either 'full' or 'archive'", GCModeFlag.Name)
 	}
 	cache := &core.CacheConfig{
-		TrieCleanLimit:      eth.DefaultConfig.TrieCleanCache,
-		TrieCleanNoPrefetch: ctx.GlobalBool(CacheNoPrefetchFlag.Name),
-		TrieDirtyLimit:      eth.DefaultConfig.TrieDirtyCache,
-		TrieDirtyDisabled:   ctx.GlobalString(GCModeFlag.Name) == "archive",
-		TrieTimeLimit:       eth.DefaultConfig.TrieTimeout,
+		TrieCleanLimit:        eth.DefaultConfig.TrieCleanCache,
+		TrieCleanNoPrefetch:   ctx.GlobalBool(CacheNoPrefetchFlag.Name),
+		TrieDirtyLimit:        eth.DefaultConfig.TrieDirtyCache,
+		TrieDirtyDisabled:     ctx.GlobalString(GCModeFlag.Name) == "archive",
+		TrieTimeLimit:         eth.DefaultConfig.TrieTimeout,
+		TrieAbsoluteTimeLimit: eth.DefaultConfig.TrieAbsoluteTimeout,
 	}
 	if ctx.GlobalIsSet(CacheFlag.Name) || ctx.GlobalIsSet(CacheTrieFlag.Name) {
 		cache.TrieCleanLimit = ctx.GlobalInt(CacheFlag.Name) * ctx.GlobalInt(CacheTrieFlag.Name) / 100
